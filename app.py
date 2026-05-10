@@ -12,7 +12,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import streamlit as st
-from intelligence.engine import ThreatIntelEngine
+from engine import ThreatIntelEngine
 from intelligence.report_generator import generate_pdf_report
 from ui.components import (
     render_metric_card, render_threat_badge, render_probability_chart,
