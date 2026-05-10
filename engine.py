@@ -2,45 +2,45 @@
 Core Threat Intelligence Engine — orchestrates NLP pipeline,
 model inference, explainability, and report generation.
 """
-
+ 
 import re
 from datetime import datetime
 from typing import Dict, Any, Optional
-
-from config.settings import SEVERITY_LEVELS, THREAT_CLASSES
-from nlp.preprocessor import (
+ 
+from settings import SEVERITY_LEVELS, THREAT_CLASSES
+from preprocessor import (
     clean_text, extract_entities, extract_keywords, get_top_keywords,
 )
-from models.rule_based import rule_based_predict
-
-
+from rule_based import rule_based_predict
+ 
+ 
 # ─── Lazy import classifier to avoid loading transformers at startup ──────────
-
+ 
 def _try_load_classifier():
     try:
-        from models.classifier import ThreatClassifier
+        from classifier import ThreatClassifier
         clf = ThreatClassifier()
         if clf.load_model():
             return clf
     except Exception:
         pass
     return None
-
-
+ 
+ 
 _CLASSIFIER: Optional[Any] = None
 _CLASSIFIER_TRIED = False
-
-
+ 
+ 
 def _get_classifier():
     global _CLASSIFIER, _CLASSIFIER_TRIED
     if not _CLASSIFIER_TRIED:
         _CLASSIFIER = _try_load_classifier()
         _CLASSIFIER_TRIED = True
     return _CLASSIFIER
-
-
+ 
+ 
 # ─── Explainability Reasoning ─────────────────────────────────────────────────
-
+ 
 REASONING_TEMPLATES = {
     "Benign": [
         "The text exhibits characteristics typical of normal security communications.",
@@ -84,7 +84,7 @@ REASONING_TEMPLATES = {
         "Database schema enumeration and data exfiltration indicators detected.",
     ],
 }
-
+ 
 RECOMMENDATIONS = {
     "Benign": [
         "Continue regular security monitoring and patch management.",
@@ -129,30 +129,25 @@ RECOMMENDATIONS = {
         "Conduct full penetration test on all web application endpoints.",
     ],
 }
-
-
+ 
+ 
 # ─── Main Analysis Engine ─────────────────────────────────────────────────────
-
+ 
 class ThreatIntelEngine:
     """Orchestrates the full threat intelligence analysis pipeline."""
-
+ 
     def analyze(self, raw_text: str) -> Dict[str, Any]:
-        """
-        Run full analysis on input text.
-
-        Returns a comprehensive threat intelligence report dictionary.
-        """
         if not raw_text or not raw_text.strip():
             return self._empty_report()
-
+ 
         timestamp = datetime.now().isoformat()
-
+ 
         # ── 1. NLP Processing ──────────────────────────────────────────────
         cleaned = clean_text(raw_text)
-        entities = extract_entities(raw_text)       # run on raw (preserves URLs etc.)
+        entities = extract_entities(raw_text)
         keyword_map = extract_keywords(raw_text)
         top_keywords = get_top_keywords(raw_text, top_n=15)
-
+ 
         # ── 2. Classification ──────────────────────────────────────────────
         clf = _get_classifier()
         if clf is not None:
@@ -163,23 +158,22 @@ class ThreatIntelEngine:
                 pred = rule_based_predict(raw_text)
         else:
             pred = rule_based_predict(raw_text)
-
+ 
         threat = pred["predicted_label"]
         confidence = pred["confidence"]
         probabilities = pred["probabilities"]
-
+ 
         # ── 3. Severity ────────────────────────────────────────────────────
         sev_meta = SEVERITY_LEVELS[threat]
-        # Adjust severity score by confidence
         sev_score = int(sev_meta["score"] * confidence) if threat != "Benign" else 0
-
+ 
         # ── 4. Explainability ──────────────────────────────────────────────
         import random
         reasoning_pool = REASONING_TEMPLATES.get(threat, ["Analysis complete."])
         reasoning = random.sample(reasoning_pool, min(3, len(reasoning_pool)))
-
+ 
         recommendations = RECOMMENDATIONS.get(threat, [])
-
+ 
         # ── 5. Risk Score (composite) ──────────────────────────────────────
         entity_bonus = (
             len(entities["urls"]) * 5 +
@@ -187,30 +181,26 @@ class ThreatIntelEngine:
             len(entities["cves"]) * 10
         )
         risk_score = min(100, sev_score + min(entity_bonus, 20))
-
+ 
         return {
             "timestamp":       timestamp,
             "raw_text":        raw_text,
             "cleaned_text":    cleaned,
-            # Classification
             "threat":          threat,
             "confidence":      round(confidence * 100, 2),
             "probabilities":   {k: round(v * 100, 2) for k, v in probabilities.items()},
             "model_source":    pred.get("source", "unknown"),
-            # Severity
             "severity_level":  sev_meta["level"],
             "severity_score":  sev_score,
             "severity_color":  sev_meta["color"],
             "risk_score":      risk_score,
-            # NLP
             "entities":        entities,
             "keyword_map":     keyword_map,
             "top_keywords":    top_keywords,
-            # XAI
             "reasoning":       reasoning,
             "recommendations": recommendations,
         }
-
+ 
     @staticmethod
     def _empty_report() -> Dict[str, Any]:
         return {
@@ -230,3 +220,4 @@ class ThreatIntelEngine:
             "recommendations": [],
             "model_source": "none",
         }
+ 
