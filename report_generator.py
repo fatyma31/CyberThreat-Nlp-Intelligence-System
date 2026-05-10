@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any
 
-from config.settings import REPORTS_DIR
+from settings import REPORTS_DIR
 
 try:
     from fpdf import FPDF
@@ -62,7 +62,7 @@ def generate_pdf_report(report: Dict[str, Any]) -> str:
     pdf.set_auto_page_break(auto=True, margin=20)
     pdf.add_page()
 
-    W = pdf.w - pdf.l_margin - pdf.r_margin  # usable width ~170mm
+    W = pdf.w - pdf.l_margin - pdf.r_margin
 
     threat     = _safe(str(report.get("threat", "Unknown")))
     severity   = _safe(str(report.get("severity_level", "Unknown")))
@@ -98,12 +98,9 @@ def generate_pdf_report(report: Dict[str, Any]) -> str:
         pdf.set_font("Helvetica", "B", 9)
         pdf.cell(key_w, 7, f"  {_safe(key)}", fill=True)
         pdf.set_font("Helvetica", "", 9)
-        # KEY FIX: explicit val_w, never 0 after a cell()
         pdf.multi_cell(val_w, 7, _safe(str(value)), fill=True)
 
     def numbered_multi(index: int, text: str):
-        # KEY FIX: combine number+text into ONE multi_cell with full W
-        # Old broken: cell(8)+multi_cell(0) -> 0 = tiny remaining width = crash
         pdf.set_font("Helvetica", "", 9)
         pdf.multi_cell(W, 6, _safe(f"{index}. {text}"))
 
